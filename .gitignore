@@ -1,0 +1,6 @@
+*~
+*.pyc
+*.pyo
+/swig/*_wrap.c
+/build
+/dist
