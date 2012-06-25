@@ -4,6 +4,17 @@ from distutils.core import Extension
 
 import os, sys
 
+
+def load_description():
+    try:
+        f = open('README.rst', 'r')
+        description = f.read()
+        f.close()
+        return description
+    except:
+        return ""
+
+
 class OpensslBuilder(build_ext.build_ext):
     """
     Specialization of build_ext to enable swig_opts to inherit any
@@ -49,6 +60,7 @@ setup(
     name='m2ext',
     version='0.1',
     description='M2Crypto Extensions',
+    long_description=load_description(),
     author='Lev Shamardin',
     author_email='shamardin@gmail.com',
     license='BSD',
