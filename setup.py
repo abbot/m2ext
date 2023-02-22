@@ -3,6 +3,7 @@ from distutils.command import build_ext
 from distutils.core import Extension
 
 import os, sys
+import platform
 
 
 def load_description():
@@ -40,7 +41,6 @@ class OpensslBuilder(build_ext.build_ext):
         build_ext.build_ext.finalize_options(self)
 
         openssl_include = os.path.join(self.openssl, 'include')
-        openssl_lib = os.path.join(self.openssl, 'lib')
 
         self.swig_opts = ['-I%s' % i for i in self.include_dirs + [openssl_include]] + ['-includeall', '-noproxy']
         if self.swig_extra is not None:
@@ -49,8 +49,40 @@ class OpensslBuilder(build_ext.build_ext):
             else:
                 self.swig_opts.append(self.swig_extra)
 
-        self.include_dirs.append(openssl_include)
-        self.library_dirs.append(openssl_lib)
+        # This fixes the build on newer RedHat-based distros
+        # See https://gitlab.com/m2crypto/m2crypto/-/issues/100 for more info
+        if platform.system() == "Linux":
+            # For RedHat-based distros, the '-D__{arch}__' option for
+            # Swig needs to be normalized, particularly on i386.
+            mach = platform.machine().lower()
+            if mach in ('i386', 'i486', 'i586', 'i686'):
+                arch = '__i386__'
+            elif mach in ('ppc64', 'powerpc64', 'ppc64le', 'ppc64el'):
+                arch = '__powerpc64__'
+            elif mach in ('ppc', 'powerpc'):
+                arch = '__powerpc__'
+            else:
+                arch = '__%s__' % mach
+            self.swig_opts.append('-D%s' % arch)
+            if mach in ('ppc64le', 'ppc64el'):
+                self.swig_opts.append('-D_CALL_ELF=2')
+            if mach in ('arm64_be'):
+                self.swig_opts.append('-D__AARCH64EB__')
+
+        # Some Linux distributor has added the following line in
+        # /usr/include/openssl/opensslconf.h:
+        #
+        #     #include "openssl-x85_64.h"
+        #
+        # This is fine with C compilers, because they are smart enough to
+        # handle 'local inclusion' correctly.  Swig, on the other hand, is
+        # not as smart, and needs to be told where to find this file...
+        #
+        # Note that this is risky workaround, since it takes away the
+        # namespace that OpenSSL uses.  If someone else has similarly
+        # named header files in /usr/include, there will be clashes.
+        self.swig_opts.append('-I' + os.path.join(openssl_include, 'openssl'))
+
 
 m2ext = Extension(name="m2ext._m2ext",
                   sources=["swig/m2ext.i"],
